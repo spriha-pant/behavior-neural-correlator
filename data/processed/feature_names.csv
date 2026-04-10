@@ -1,0 +1,9 @@
+feature
+dFF_scaled
+dFF_lag_1
+dFF_lag_2
+dFF_lag_3
+dFF_lag_5
+dFF_lag_10
+dFF_roll_mean
+dFF_roll_std
