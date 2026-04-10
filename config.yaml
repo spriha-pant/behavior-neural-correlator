@@ -1,0 +1,50 @@
+# =============================================================================
+# config.yaml
+# Central configuration file for the entire project.
+# Change values here instead of hunting through code files.
+# =============================================================================
+
+# --- Paths ---
+paths:
+  raw_data_dir: "data/raw"            # Drop your original CSVs here
+  processed_data_dir: "data/processed" # Cleaned data gets saved here
+  models_dir: "models"                 # Trained model files saved here
+  results_dir: "results"               # Plots and metric files saved here
+
+# --- Data format ---
+data:
+  time_col: "time"         # Name of the time column in your CSV
+  neural_col: "dF/F"       # Name of the neural signal column
+  behavior_col: "behavior" # Name of the behavior label column
+  sampling_rate: 15        # Hz — how many rows per second (0.1s steps = 10 Hz)
+
+# --- Behavior labels ---
+# Which label counts as "licking" for binary classification (Phase 1)
+# Everything else becomes 0 (no-lick)
+behavior:
+  lick_label: "hind lick"       # Exact string as it appears in your CSV
+
+# --- Feature engineering ---
+features:
+  # Lag features: include dF/F from N previous timepoints as extra input columns
+  # e.g. [1, 2, 5] means: add columns for dF/F 1 step ago, 2 steps ago, 5 steps ago
+  lag_steps: [1, 2, 3, 5, 10]
+
+  # Rolling statistics window (in number of rows)
+  # e.g. 5 means: compute mean and std of dF/F over the last 5 timepoints
+  rolling_window: 5
+
+# --- Train/test split ---
+split:
+  test_size: 0.2          # 20% of data held out for testing
+  shuffle: false          # IMPORTANT: keep false for time-series data
+                          # Shuffling would leak future info into training
+
+# --- Model ---
+model:
+  # Threshold for converting linear regression's continuous output → binary label
+  # Output > threshold → predicted lick (1), else → predicted no-lick (0)
+  lr_threshold: 0.5
+
+# --- Reproducibility ---
+random_seed: 42
