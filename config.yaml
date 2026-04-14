@@ -22,7 +22,7 @@ data:
 # Which label counts as "licking" for binary classification (Phase 1)
 # Everything else becomes 0 (no-lick)
 behavior:
-  lick_label: "hind lick"       # Exact string as it appears in your CSV
+  lick_label: "lick"       # Exact string as it appears in your CSV
 
 # --- Feature engineering ---
 features:
