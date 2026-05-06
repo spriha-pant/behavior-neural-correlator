@@ -5,7 +5,9 @@
 # ▼▼▼ CHANGE THIS IF YOUR TEST SET HAS 0% LICK RATE ▼▼▼
 USE_CV = True   # True = TimeSeriesSplit (recommended if licks cluster in time)
                 # False = simple 80/20 end-cut
-N_CV_FOLDS = 5  # Only used when USE_CV=True
+N_CV_FOLDS = 10  # Only used when USE_CV=True
+AUTO_SELECT_FOLD = True          # if True, ignores FOLD_TO_USE and picks best fold
+FOLD_TO_USE = 6                  # only used if AUTO_SELECT_FOLD = False
 # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
 import os
@@ -146,7 +148,7 @@ else:
     tscv = TimeSeriesSplit(n_splits=N_CV_FOLDS)
 
     fold_info = []
-    last_train_idx, last_test_idx = None, None
+    all_splits = []
 
     for fold, (train_idx, test_idx) in enumerate(tscv.split(X), start=1):
         y_fold_train = y.iloc[train_idx]
@@ -163,28 +165,41 @@ else:
             "train_lick_pct": round(lick_train, 2),
             "test_lick_pct":  round(lick_test, 2)
         })
-        last_train_idx = train_idx
-        last_test_idx  = test_idx
+        all_splits.append((train_idx, test_idx))
 
     pd.DataFrame(fold_info).to_csv(
         os.path.join(PROCESSED_DIR, "cv_fold_summary.csv"), index=False
     )
     print(f"\n  CV fold summary saved → check data/processed/cv_fold_summary.csv")
-    print(f"  Look for folds where test_lick_pct > 0.")
 
-    X_train = X.iloc[last_train_idx]
-    X_test  = X.iloc[last_test_idx]
-    y_train = y.iloc[last_train_idx]
-    y_test  = y.iloc[last_test_idx]
+    # --- Auto‑select best fold based on highest test lick rate ---
+    if AUTO_SELECT_FOLD:
+        valid_folds = [f for f in fold_info if f["test_lick_pct"] > 0]
+        if not valid_folds:
+            raise RuntimeError("No fold has a positive test lick rate. Cannot continue.")
+        # Choose fold with maximum test lick percentage
+        best_fold_info = max(valid_folds, key=lambda x: x["test_lick_pct"])
+        best_fold = best_fold_info["fold"]
+        print(f"\n  Auto‑selected fold {best_fold} (test lick rate: {best_fold_info['test_lick_pct']:.1f}%)")
+        chosen_fold_idx = best_fold - 1
+    else:
+        chosen_fold_idx = FOLD_TO_USE - 1
+        if chosen_fold_idx < 0 or chosen_fold_idx >= len(all_splits):
+            raise ValueError(f"FOLD_TO_USE={FOLD_TO_USE} invalid. Must be 1..{N_CV_FOLDS}")
 
-    print(f"\n  Using fold {N_CV_FOLDS} for model files:")
+    train_idx, test_idx = all_splits[chosen_fold_idx]
+
+    X_train = X.iloc[train_idx]
+    X_test  = X.iloc[test_idx]
+    y_train = y.iloc[train_idx]
+    y_test  = y.iloc[test_idx]
+
+    print(f"\n  Using fold {chosen_fold_idx+1} for model files:")
     print(f"  X_train: {X_train.shape}  lick rate: {y_train.mean()*100:.1f}%")
     print(f"  X_test:  {X_test.shape}  lick rate: {y_test.mean()*100:.1f}%")
 
     if y_test.mean() == 0:
-        print(f"\n  ⚠ Even the last fold test set has 0% lick rate.")
-        print(f"  ⚠ Open cv_fold_summary.csv and find a fold where test_lick_pct > 0.")
-        print(f"  ⚠ Then set N_CV_FOLDS to that fold number and re-run.")
+        print(f"\n  ⚠ Warning: test set has 0% lick rate. Model evaluation will be meaningless.")
 
 X_train.to_csv(os.path.join(PROCESSED_DIR, "X_train.csv"), index=False)
 X_test.to_csv(os.path.join(PROCESSED_DIR,  "X_test.csv"),  index=False)
