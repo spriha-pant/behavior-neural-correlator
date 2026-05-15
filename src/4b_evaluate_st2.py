@@ -84,6 +84,9 @@ xgb_prob  = xgb_model.predict_proba(X_test)[:, 1]
 # STEP 3: Metrics for all 4 models
 # --------------------------------------------------------------------------
 
+rf_pred  = (rf_prob  > 0.3).astype(int)   # instead of rf_model.predict()
+xgb_pred = (xgb_prob > 0.3).astype(int)   # instead of xgb_model.predict()
+
 def compute_metrics(y_true, y_pred, model_name):
     print(f"\n{'='*50}")
     print(f"  {model_name}")
@@ -110,7 +113,7 @@ all_metrics = [
 ]
 
 metrics_df = pd.DataFrame(all_metrics)
-metrics_df.to_csv(os.path.join(RESULTS_DIR, "stage2_metrics.csv"), index=False)
+metrics_df.to_csv(os.path.join(RESULTS_DIR, "stage2_metrics2.csv"), index=False)
 print(f"\n✓ Metrics saved.")
 
 # --------------------------------------------------------------------------
@@ -134,7 +137,7 @@ for ax, (y_pred, title) in zip(axes.flatten(), model_pairs):
     ax.set_title(title, fontsize=11)
 
 plt.tight_layout()
-plt.savefig(os.path.join(RESULTS_DIR, "stage2_confusion_matrices.png"), dpi=150)
+plt.savefig(os.path.join(RESULTS_DIR, "stage2_confusion_matrices2.png"), dpi=150)
 plt.close()
 print(f"✓ Confusion matrices saved.")
 
@@ -171,7 +174,7 @@ ax.text(3.1, 1.10, "Stage 2", ha="center", fontsize=9, color="gray")
 ax.grid(axis="y", linestyle="--", alpha=0.4)
 
 plt.tight_layout()
-plt.savefig(os.path.join(RESULTS_DIR, "stage2_metric_comparison_all.png"), dpi=150)
+plt.savefig(os.path.join(RESULTS_DIR, "stage2_metric_comparison_all2.png"), dpi=150)
 plt.close()
 print(f"✓ All-model metric comparison chart saved.")
 
@@ -338,11 +341,11 @@ make_timeline_figure(y_test, log_pred,  log_prob,
 
 make_timeline_figure(y_test, rf_pred,   rf_prob,
                      "Random Forest [Stage 2]",
-                     "timeline_random_forest.png")
+                     "timeline_random_forest2.png")
 
 make_timeline_figure(y_test, xgb_pred,  xgb_prob,
                      "XGBoost [Stage 2]",
-                     "timeline_xgboost.png")
+                     "timeline_xgboost2.png")
 
 
 # --------------------------------------------------------------------------
@@ -368,7 +371,7 @@ for ax, model, title in [
     ax.grid(axis="x", linestyle="--", alpha=0.4)
 
 plt.tight_layout()
-plt.savefig(os.path.join(RESULTS_DIR, "stage2_feature_importances.png"), dpi=150)
+plt.savefig(os.path.join(RESULTS_DIR, "stage2_feature_importances2.png"), dpi=150)
 plt.close()
 print(f"✓ Feature importance plot saved.")
 
@@ -379,13 +382,13 @@ print(f"✓ Feature importance plot saved.")
 
 print(f"\n{'='*60}")
 print("Stage 2 evaluation complete. Files saved to results/:")
-print("  - stage2_metrics.csv")
-print("  - stage2_confusion_matrices.png")
-print("  - stage2_metric_comparison_all.png")
-print("  - stage2_feature_importances.png")
-print("  - timeline_logistic.png")
-print("  - timeline_random_forest.png")
-print("  - timeline_xgboost.png")
+print("  - stage2_metrics2.csv")
+print("  - stage2_confusion_matrices2.png")
+print("  - stage2_metric_comparison_all2.png")
+print("  - stage2_feature_importances2.png")
+print("  - timeline_logistic2.png")
+print("  - timeline_random_forest2.png")
+print("  - timeline_xgboost2.png")
 print(f"{'='*60}")
 
 # Print a quick summary table
