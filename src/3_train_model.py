@@ -72,7 +72,7 @@ for name, coef in zip(feature_names, lin_reg.coef_):
     print(f"    {name}: {coef:.6f}")
 
 # Save model
-lin_reg_path = os.path.join(MODELS_DIR, "linear_regression.pkl")
+lin_reg_path = os.path.join(MODELS_DIR, "linear_regression.pkl") # CHANGE
 joblib.dump(lin_reg, lin_reg_path)
 print(f"\n  ✓ Linear Regression saved to: {lin_reg_path}")
 
@@ -105,7 +105,7 @@ for name, coef in zip(feature_names, log_reg.coef_[0]):
     print(f"    {name}: {coef:.6f}")
 
 # Save model
-log_reg_path = os.path.join(MODELS_DIR, "logistic_regression.pkl")
+log_reg_path = os.path.join(MODELS_DIR, "logistic_regression.pkl") # CHANGE
 joblib.dump(log_reg, log_reg_path)
 print(f"\n  ✓ Logistic Regression saved to: {log_reg_path}")
 

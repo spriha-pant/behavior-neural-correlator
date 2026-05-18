@@ -117,7 +117,7 @@ for name, imp in sorted(zip(feature_names, importances), key=lambda x: -x[1]):
     bar = "█" * int(imp * 40)
     print(f"    {name:<20} {imp:.4f}  {bar}")
 
-rf_path = os.path.join(MODELS_DIR, "random_forest.pkl")
+rf_path = os.path.join(MODELS_DIR, "random_forest4.pkl") # CHANGE
 joblib.dump(rf_model, rf_path)
 print(f"\n  ✓ Random Forest saved to: {rf_path}")
 
@@ -180,7 +180,7 @@ for name, imp in sorted(zip(feature_names, xgb_importances), key=lambda x: -x[1]
     bar = "█" * int(imp * 40)
     print(f"    {name:<20} {imp:.4f}  {bar}")
 
-xgb_path = os.path.join(MODELS_DIR, "xgboost.pkl")
+xgb_path = os.path.join(MODELS_DIR, "xgboost4.pkl") # CHANGE
 joblib.dump(xgb_model, xgb_path)
 print(f"\n  ✓ XGBoost saved to: {xgb_path}")
 
