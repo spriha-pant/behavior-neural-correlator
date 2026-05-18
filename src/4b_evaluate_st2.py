@@ -59,8 +59,8 @@ lin_reg = joblib.load(os.path.join(MODELS_DIR, "linear_regression.pkl"))
 log_reg = joblib.load(os.path.join(MODELS_DIR, "logistic_regression.pkl"))
 
 # Stage 2 models
-rf_model  = joblib.load(os.path.join(MODELS_DIR, "random_forest.pkl"))
-xgb_model = joblib.load(os.path.join(MODELS_DIR, "xgboost.pkl"))
+rf_model  = joblib.load(os.path.join(MODELS_DIR, "random_forest4.pkl")) # CHANGE
+xgb_model = joblib.load(os.path.join(MODELS_DIR, "xgboost4.pkl")) # CHANGE
 
 print(f"  X_test shape: {X_test.shape}")
 print(f"  Actual lick rate in test set: {y_test.mean()*100:.1f}%")
@@ -84,8 +84,8 @@ xgb_prob  = xgb_model.predict_proba(X_test)[:, 1]
 # STEP 3: Metrics for all 4 models
 # --------------------------------------------------------------------------
 
-rf_pred  = (rf_prob  > 0.3).astype(int)   # instead of rf_model.predict()
-xgb_pred = (xgb_prob > 0.3).astype(int)   # instead of xgb_model.predict()
+rf_pred  = (rf_prob  > 0.3).astype(int) # CHANGE THRESHOLD
+xgb_pred = (xgb_prob > 0.3).astype(int) # CHANGE THRESHOLD
 
 def compute_metrics(y_true, y_pred, model_name):
     print(f"\n{'='*50}")
@@ -113,7 +113,7 @@ all_metrics = [
 ]
 
 metrics_df = pd.DataFrame(all_metrics)
-metrics_df.to_csv(os.path.join(RESULTS_DIR, "stage2_metrics2.csv"), index=False)
+metrics_df.to_csv(os.path.join(RESULTS_DIR, "stage2_metrics3.csv"), index=False) # CHANGE
 print(f"\n✓ Metrics saved.")
 
 # --------------------------------------------------------------------------
@@ -137,7 +137,7 @@ for ax, (y_pred, title) in zip(axes.flatten(), model_pairs):
     ax.set_title(title, fontsize=11)
 
 plt.tight_layout()
-plt.savefig(os.path.join(RESULTS_DIR, "stage2_confusion_matrices2.png"), dpi=150)
+plt.savefig(os.path.join(RESULTS_DIR, "stage2_confusion_matrices3.png"), dpi=150) # CHANGE
 plt.close()
 print(f"✓ Confusion matrices saved.")
 
@@ -174,7 +174,7 @@ ax.text(3.1, 1.10, "Stage 2", ha="center", fontsize=9, color="gray")
 ax.grid(axis="y", linestyle="--", alpha=0.4)
 
 plt.tight_layout()
-plt.savefig(os.path.join(RESULTS_DIR, "stage2_metric_comparison_all2.png"), dpi=150)
+plt.savefig(os.path.join(RESULTS_DIR, "stage2_metric_comparison_all3.png"), dpi=150) # CHANGE
 plt.close()
 print(f"✓ All-model metric comparison chart saved.")
 
@@ -341,11 +341,11 @@ make_timeline_figure(y_test, log_pred,  log_prob,
 
 make_timeline_figure(y_test, rf_pred,   rf_prob,
                      "Random Forest [Stage 2]",
-                     "timeline_random_forest2.png")
+                     "timeline_random_forest3.png") # CHANGE
 
 make_timeline_figure(y_test, xgb_pred,  xgb_prob,
                      "XGBoost [Stage 2]",
-                     "timeline_xgboost2.png")
+                     "timeline_xgboost3.png") # CHANGE
 
 
 # --------------------------------------------------------------------------
@@ -371,7 +371,7 @@ for ax, model, title in [
     ax.grid(axis="x", linestyle="--", alpha=0.4)
 
 plt.tight_layout()
-plt.savefig(os.path.join(RESULTS_DIR, "stage2_feature_importances2.png"), dpi=150)
+plt.savefig(os.path.join(RESULTS_DIR, "stage2_feature_importances3.png"), dpi=150) # CHANGE
 plt.close()
 print(f"✓ Feature importance plot saved.")
 
@@ -382,13 +382,13 @@ print(f"✓ Feature importance plot saved.")
 
 print(f"\n{'='*60}")
 print("Stage 2 evaluation complete. Files saved to results/:")
-print("  - stage2_metrics2.csv")
-print("  - stage2_confusion_matrices2.png")
-print("  - stage2_metric_comparison_all2.png")
-print("  - stage2_feature_importances2.png")
-print("  - timeline_logistic2.png")
-print("  - timeline_random_forest2.png")
-print("  - timeline_xgboost2.png")
+print("  - stage2_metrics3.csv") # CHANGE
+print("  - stage2_confusion_matrices3.png") # CHANGE
+print("  - stage2_metric_comparison_all3.png") # CHANGE
+print("  - stage2_feature_importances3.png") # CHANGE
+print("  - timeline_logistic.png")
+print("  - timeline_random_forest3.png") # CHANGE
+print("  - timeline_xgboost3.png") # CHANGE
 print(f"{'='*60}")
 
 # Print a quick summary table

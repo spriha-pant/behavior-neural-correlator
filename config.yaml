@@ -22,17 +22,21 @@ data:
 # Which label counts as "licking" for binary classification (Phase 1)
 # Everything else becomes 0 (no-lick)
 behavior:
-  lick_label: "lick"       # Exact string as it appears in your CSV
+  lick_label: "hind lick"       # Exact string as it appears in your CSV
 
 # --- Feature engineering ---
 features:
+  # Lag steps: how far back (in timepoints) to look.
+  # At ~15 Hz, lag 15 = 1 second back.
   # Lag features: include dF/F from N previous timepoints as extra input columns
   # e.g. [1, 2, 5] means: add columns for dF/F 1 step ago, 2 steps ago, 5 steps ago
-  lag_steps: [1, 2, 3, 5, 10]
+  # Extended from original [1,2,3,5,10] to cover up to ~1.3 seconds back.
+  lag_steps: [1, 2, 3, 5, 7, 10, 15, 20]
 
   # Rolling statistics window (in number of rows)
   # e.g. 5 means: compute mean and std of dF/F over the last 5 timepoints
-  rolling_window: 5
+  # 10 timepoints ≈ 0.66 seconds at 15 Hz.
+  rolling_window: 10
 
 # --- Train/test split ---
 split:
