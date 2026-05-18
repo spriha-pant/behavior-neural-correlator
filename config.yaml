@@ -48,7 +48,7 @@ split:
 model:
   # Threshold for converting linear regression's continuous output → binary label
   # Output > threshold → predicted lick (1), else → predicted no-lick (0)
-  lr_threshold: 0.5
+  lr_threshold: 0.3 # CHANGE
 
 # --- Reproducibility ---
 random_seed: 42

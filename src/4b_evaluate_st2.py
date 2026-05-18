@@ -55,12 +55,12 @@ X_test  = pd.read_csv(os.path.join(PROCESSED_DIR, "X_test.csv"))
 y_test  = pd.read_csv(os.path.join(PROCESSED_DIR, "y_test.csv")).squeeze()
 
 # Stage 1 models (for comparison baseline)
-lin_reg = joblib.load(os.path.join(MODELS_DIR, "linear_regression.pkl"))
-log_reg = joblib.load(os.path.join(MODELS_DIR, "logistic_regression.pkl"))
+lin_reg = joblib.load(os.path.join(MODELS_DIR, "linear_regression7.pkl")) # CHANGE
+log_reg = joblib.load(os.path.join(MODELS_DIR, "logistic_regression7.pkl")) # CHANGE
 
 # Stage 2 models
-rf_model  = joblib.load(os.path.join(MODELS_DIR, "random_forest4.pkl")) # CHANGE
-xgb_model = joblib.load(os.path.join(MODELS_DIR, "xgboost4.pkl")) # CHANGE
+rf_model  = joblib.load(os.path.join(MODELS_DIR, "random_forest7.pkl")) # CHANGE
+xgb_model = joblib.load(os.path.join(MODELS_DIR, "xgboost7.pkl")) # CHANGE
 
 print(f"  X_test shape: {X_test.shape}")
 print(f"  Actual lick rate in test set: {y_test.mean()*100:.1f}%")
@@ -113,7 +113,7 @@ all_metrics = [
 ]
 
 metrics_df = pd.DataFrame(all_metrics)
-metrics_df.to_csv(os.path.join(RESULTS_DIR, "stage2_metrics3.csv"), index=False) # CHANGE
+metrics_df.to_csv(os.path.join(RESULTS_DIR, "stage2_metrics7.csv"), index=False) # CHANGE
 print(f"\n✓ Metrics saved.")
 
 # --------------------------------------------------------------------------
@@ -137,7 +137,7 @@ for ax, (y_pred, title) in zip(axes.flatten(), model_pairs):
     ax.set_title(title, fontsize=11)
 
 plt.tight_layout()
-plt.savefig(os.path.join(RESULTS_DIR, "stage2_confusion_matrices3.png"), dpi=150) # CHANGE
+plt.savefig(os.path.join(RESULTS_DIR, "stage2_confusion_matrices7.png"), dpi=150) # CHANGE
 plt.close()
 print(f"✓ Confusion matrices saved.")
 
@@ -174,7 +174,7 @@ ax.text(3.1, 1.10, "Stage 2", ha="center", fontsize=9, color="gray")
 ax.grid(axis="y", linestyle="--", alpha=0.4)
 
 plt.tight_layout()
-plt.savefig(os.path.join(RESULTS_DIR, "stage2_metric_comparison_all3.png"), dpi=150) # CHANGE
+plt.savefig(os.path.join(RESULTS_DIR, "stage2_metric_comparison_all7.png"), dpi=150) # CHANGE
 plt.close()
 print(f"✓ All-model metric comparison chart saved.")
 
@@ -337,15 +337,15 @@ def make_timeline_figure(y_true, y_pred, prob, model_name, filename):
 # (also generating for Logistic so you have a direct visual comparison)
 make_timeline_figure(y_test, log_pred,  log_prob,
                      "Logistic Regression [Stage 1 baseline]",
-                     "timeline_logistic.png")
+                     "timeline_logistic7.png") # CHANGE
 
 make_timeline_figure(y_test, rf_pred,   rf_prob,
                      "Random Forest [Stage 2]",
-                     "timeline_random_forest3.png") # CHANGE
+                     "timeline_random_forest7.png") # CHANGE
 
 make_timeline_figure(y_test, xgb_pred,  xgb_prob,
                      "XGBoost [Stage 2]",
-                     "timeline_xgboost3.png") # CHANGE
+                     "timeline_xgboost7.png") # CHANGE
 
 
 # --------------------------------------------------------------------------
@@ -371,7 +371,7 @@ for ax, model, title in [
     ax.grid(axis="x", linestyle="--", alpha=0.4)
 
 plt.tight_layout()
-plt.savefig(os.path.join(RESULTS_DIR, "stage2_feature_importances3.png"), dpi=150) # CHANGE
+plt.savefig(os.path.join(RESULTS_DIR, "stage2_feature_importances7.png"), dpi=150) # CHANGE
 plt.close()
 print(f"✓ Feature importance plot saved.")
 
@@ -382,13 +382,13 @@ print(f"✓ Feature importance plot saved.")
 
 print(f"\n{'='*60}")
 print("Stage 2 evaluation complete. Files saved to results/:")
-print("  - stage2_metrics3.csv") # CHANGE
-print("  - stage2_confusion_matrices3.png") # CHANGE
-print("  - stage2_metric_comparison_all3.png") # CHANGE
-print("  - stage2_feature_importances3.png") # CHANGE
-print("  - timeline_logistic.png")
-print("  - timeline_random_forest3.png") # CHANGE
-print("  - timeline_xgboost3.png") # CHANGE
+print("  - stage2_metrics7.csv") # CHANGE
+print("  - stage2_confusion_matrices7.png") # CHANGE
+print("  - stage2_metric_comparison_all7.png") # CHANGE
+print("  - stage2_feature_importances7.png") # CHANGE
+print("  - timeline_logistic7.png")
+print("  - timeline_random_forest7.png") # CHANGE
+print("  - timeline_xgboost7.png") # CHANGE
 print(f"{'='*60}")
 
 # Print a quick summary table

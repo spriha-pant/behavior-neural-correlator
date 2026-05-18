@@ -17,10 +17,21 @@
 #              requires: pip install imbalanced-learn
 #     False → no resampling (class imbalance handled by model weights only)
 #
-# MULTI-FILE SUPPORT:
-#   All CSVs in data/raw/ are loaded and processed.
-#   Lag and rolling features are computed PER FILE before concatenating.
-#   This prevents lag features from bleeding across recording sessions.
+# MULTI-FILE:
+#   All CSVs in data/raw/ are loaded. Lag, rolling, and temporal features
+#   are computed PER FILE before concatenating, so no information bleeds
+#   across session boundaries.
+#
+# TEMPORAL FEATURES:
+#   For each session file, three features capture where in the experiment
+#   each timepoint falls:
+#     session_time_norm    — 0.0 (start of session) to 1.0 (end of session)
+#     session_time_elapsed — seconds elapsed since session start (raw)
+#     session_progress_bin — which quarter: 0 (first 25%) … 3 (last 25%)
+#
+#   These give the model awareness of the experimental arc. A rising dF/F
+#   signal means something different at the start of a hot plate trial vs
+#   near the end when the mouse is much more stressed.
 # =============================================================================
 
 DATA_ALREADY_ZSCORED = True   # your files are already Z-scored
@@ -110,6 +121,53 @@ for fname in csv_files:
     df["dFF_roll_mean"] = df["dFF_scaled"].rolling(window=ROLL_WIN).mean()
     df["dFF_roll_std"]  = df["dFF_scaled"].rolling(window=ROLL_WIN).std()
 
+ # ── Session-level temporal features ───────────────────────────────────
+    # These encode WHERE IN THE EXPERIMENT each timepoint falls.
+    #
+    # Background: in a hot plate experiment, the mouse's behavioral and
+    # neural state changes over time. Early in the trial, the mouse may
+    # explore or lick occasionally. Later, as heat accumulates, responses
+    # become more frequent and intense. The same dF/F value has different
+    # predictive meaning at t=10s vs t=200s into the trial.
+    #
+    # Without these features, the model treats every timepoint identically
+    # regardless of experimental context. With them, it can learn rules
+    # like "a signal of this amplitude at 80% through the trial is much
+    # more likely to precede jumping than the same signal at 10%."
+    #
+    # session_time_norm:
+    #   Normalize the time column to [0, 1] within each file.
+    #   0.0 = very start of session, 1.0 = very end.
+    #   Formula: (t - t_min) / (t_max - t_min)
+    #   This is scale-invariant: works regardless of whether time is in
+    #   milliseconds, seconds, or any other unit.
+ 
+    t_min = df[TIME_COL].min()
+    t_max = df[TIME_COL].max()
+    t_range = t_max - t_min if t_max != t_min else 1.0   # avoid div-by-zero
+ 
+    df["session_time_norm"] = (df[TIME_COL] - t_min) / t_range
+ 
+    # session_time_elapsed:
+    #   Seconds (or whatever unit your time column uses) elapsed since the
+    #   start of this session. Gives the model the raw duration context,
+    #   which is meaningful even if sessions differ in total length.
+    df["session_time_elapsed"] = df[TIME_COL] - t_min
+ 
+    # session_progress_bin:
+    #   Which quarter of the session is this timepoint in?
+    #   0 = first 25%  (early: mouse placed on hot plate, initial response)
+    #   1 = second 25% (building: heat accumulating)
+    #   2 = third 25%  (mid-late: escalating responses)
+    #   3 = last 25%   (late: peak stress, jumping, escape behaviours)
+    #   pd.cut divides the normalized time into 4 equal bins.
+    df["session_progress_bin"] = pd.cut(
+        df["session_time_norm"],
+        bins=[0.0, 0.25, 0.50, 0.75, 1.001],   # 1.001 to include the endpoint
+        labels=[0, 1, 2, 3],
+        include_lowest=True
+    ).astype(int)
+
     # ── Drop NaN rows created by lag/rolling/diff ──────────────────────────
     rows_before = len(df)
     df = df.dropna().reset_index(drop=True)
@@ -154,14 +212,24 @@ feature_cols = (
     ["dFF_scaled"]
     + lag_feature_cols
     + ["dFF_delta", "dFF_roll_mean", "dFF_roll_std"]
+    + ["session_time_norm", "session_time_elapsed", "session_progress_bin"]
 )
 
 X = full_df[feature_cols]
 y = full_df["label"]
 
 print(f"\nFeature matrix X: {X.shape}")
-print(f"Features: {feature_cols}")
-
+print(f"\nFeatures ({len(feature_cols)} total):")
+groups = {
+    "Neural signal":    ["dFF_scaled"],
+    "Lag features":     lag_feature_cols,
+    "Signal dynamics":  ["dFF_delta", "dFF_roll_mean", "dFF_roll_std"],
+    "Temporal context": ["session_time_norm", "session_time_elapsed",
+                         "session_progress_bin"],
+}
+for group_name, cols in groups.items():
+    print(f"  [{group_name}]  {cols}")
+ 
 pd.Series(feature_cols).to_csv(
     os.path.join(PROCESSED_DIR, "feature_names.csv"), index=False, header=["feature"]
 )
@@ -228,6 +296,15 @@ else:
 # --------------------------------------------------------------------------
 # STEP 6: SMOTE — oversample minority class in TRAINING set only
 # --------------------------------------------------------------------------
+# SMOTE creates synthetic minority-class (lick) samples by interpolating
+# between existing lick samples in feature space.
+# Applied ONLY to training data — test set always reflects real distribution.
+#
+# With SMOTE balancing the training set to ~50/50, the decision threshold
+# in config.yaml should stay at 0.5 (the natural midpoint).
+# Do NOT lower the threshold to 0.3 when SMOTE is active — that combination
+# double-corrects for imbalance and makes the model predict lick far too often.
+# 
 # WHAT SMOTE DOES:
 #   For each lick (minority) sample, it finds its K nearest neighbours
 #   among other lick samples in feature space, then creates new synthetic
