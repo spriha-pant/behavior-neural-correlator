@@ -1,0 +1,410 @@
+# =============================================================================
+# src/4c_evaluate_stage3.py
+# PURPOSE: Evaluate the trained LSTM and compare it against all prior stages.
+#
+# Outputs:
+#   - Printed metrics for LSTM vs all prior models
+#   - stage3_metrics.csv
+#   - stage3_all_model_comparison.png  (bar chart, all 4 models)
+#   - stage3_training_curves.png       (already saved by training script)
+#   - lick_comparison_lstm.png         (3-panel timeline: actual/predicted/superimposed)
+#   - stage3_confusion_matrices.png
+#
+# Run from project/ root:
+#   python src/4c_evaluate_stage3.py
+# =============================================================================
+
+import os
+import sys
+import numpy as np
+import pandas as pd
+import yaml
+import joblib
+import torch
+import torch.nn as nn
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score, f1_score,
+    confusion_matrix, ConfusionMatrixDisplay, classification_report
+)
+
+with open("config.yaml", "r") as f:
+    config = yaml.safe_load(f)
+
+PROCESSED_DIR = config["paths"]["processed_data_dir"]
+MODELS_DIR    = config["paths"]["models_dir"]
+RESULTS_DIR   = config["paths"]["results_dir"]
+LR_THRESHOLD  = config["model"]["lr_threshold"]
+SEQ_LEN       = config["lstm"]["seq_len"]
+HIDDEN        = config["lstm"]["hidden_size"]
+N_LAYERS      = config["lstm"]["num_layers"]
+DROPOUT       = config["lstm"]["dropout"]
+
+os.makedirs(RESULTS_DIR, exist_ok=True)
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# --------------------------------------------------------------------------
+# STEP 1: Load LSTM test data and model
+# --------------------------------------------------------------------------
+
+print("Loading LSTM test data...")
+X_test_lstm = np.load(os.path.join(PROCESSED_DIR, "lstm_X_test.npy"))
+y_test_lstm = np.load(os.path.join(PROCESSED_DIR, "lstm_y_test.npy"))
+
+print(f"  X_test shape: {X_test_lstm.shape}")
+print(f"  Actual lick rate: {y_test_lstm.mean()*100:.1f}%")
+
+n_features = X_test_lstm.shape[2]
+
+# Reconstruct model architecture (must match 3c_train_stage3.py exactly)
+class LickLSTM(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers, dropout):
+        super().__init__()
+        self.lstm = nn.LSTM(input_size=input_size, hidden_size=hidden_size,
+                            num_layers=num_layers,
+                            dropout=dropout if num_layers > 1 else 0.0,
+                            batch_first=True)
+        self.dropout = nn.Dropout(dropout)
+        self.fc = nn.Linear(hidden_size, 1)
+
+    def forward(self, x):
+        lstm_out, _ = self.lstm(x)
+        last_step   = lstm_out[:, -1, :]
+        dropped     = self.dropout(last_step)
+        return self.fc(dropped).squeeze(1)
+
+
+lstm_model = LickLSTM(n_features, HIDDEN, N_LAYERS, DROPOUT).to(device)
+lstm_model.load_state_dict(
+    torch.load(os.path.join(MODELS_DIR, "lstm_best.pt"), map_location=device)
+)
+lstm_model.eval()
+print("LSTM model loaded.")
+
+# --------------------------------------------------------------------------
+# STEP 2: LSTM predictions
+# --------------------------------------------------------------------------
+
+X_tensor  = torch.tensor(X_test_lstm, dtype=torch.float32).to(device)
+
+with torch.no_grad():
+    logits       = lstm_model(X_tensor)
+    lstm_prob    = torch.sigmoid(logits).cpu().numpy()
+    lstm_pred    = (lstm_prob > 0.5).astype(int)
+
+y_true_lstm = y_test_lstm.astype(int)
+
+# --------------------------------------------------------------------------
+# STEP 3: Load Stage 1/2 models and their test data for comparison
+# --------------------------------------------------------------------------
+# Stage 1/2 models use a 2D feature matrix, not sequences.
+# Their test set may differ from the LSTM test set (different fold).
+# We load both and report them separately.
+
+print("\nLoading Stage 1/2 models for comparison...")
+try:
+    X_test_s12 = pd.read_csv(os.path.join(PROCESSED_DIR, "X_test.csv"))
+    y_test_s12 = pd.read_csv(os.path.join(PROCESSED_DIR, "y_test.csv")).squeeze()
+
+    lin_reg   = joblib.load(os.path.join(MODELS_DIR, "linear_regression1.pkl")) # CHANGE
+    log_reg   = joblib.load(os.path.join(MODELS_DIR, "logistic_regression1.pkl")) # CHANGE
+    rf_model  = joblib.load(os.path.join(MODELS_DIR, "random_forest4.pkl")) # CHANGE
+    xgb_model = joblib.load(os.path.join(MODELS_DIR, "xgboost4.pkl")) # CHANGE
+
+    lin_pred  = (lin_reg.predict(X_test_s12) > LR_THRESHOLD).astype(int)
+    log_pred  = log_reg.predict(X_test_s12)
+    rf_pred   = rf_model.predict(X_test_s12)
+    xgb_pred  = xgb_model.predict(X_test_s12)
+    rf_prob   = rf_model.predict_proba(X_test_s12)[:, 1]
+    xgb_prob  = xgb_model.predict_proba(X_test_s12)[:, 1]
+
+    y_true_s12 = y_test_s12.values.astype(int)
+    has_s12    = True
+    print("  Stage 1/2 models loaded.")
+except Exception as e:
+    print(f"  Could not load Stage 1/2 models: {e}")
+    print("  Proceeding with LSTM only.")
+    has_s12 = False
+
+# --------------------------------------------------------------------------
+# STEP 4: Metrics helper
+# --------------------------------------------------------------------------
+
+def compute_metrics(y_true, y_pred, model_name, print_report=True):
+    acc  = accuracy_score(y_true, y_pred)
+    prec = precision_score(y_true, y_pred, zero_division=0)
+    rec  = recall_score(y_true, y_pred, zero_division=0)
+    f1   = f1_score(y_true, y_pred, zero_division=0)
+    if print_report:
+        print(f"\n{'='*50}")
+        print(f"  {model_name}")
+        print(f"{'='*50}")
+        print(f"  Accuracy:  {acc*100:.2f}%")
+        print(f"  Precision: {prec:.4f}")
+        print(f"  Recall:    {rec:.4f}")
+        print(f"  F1 Score:  {f1:.4f}")
+        print(classification_report(y_true, y_pred,
+                                     target_names=["no-lick", "lick"],
+                                     labels=[0, 1], zero_division=0))
+    return {"model": model_name, "accuracy": acc,
+            "precision": prec, "recall": rec, "f1": f1}
+
+# Compute metrics for LSTM
+lstm_metrics = compute_metrics(y_true_lstm, lstm_pred, "LSTM [Stage 3]")
+
+# Compute for Stage 1/2 (quieter — we've seen these before)
+all_metrics = []
+if has_s12:
+    all_metrics += [
+        compute_metrics(y_true_s12, lin_pred,  "Linear Regression  [S1]", False),
+        compute_metrics(y_true_s12, log_pred,  "Logistic Regression [S1]", False),
+        compute_metrics(y_true_s12, rf_pred,   "Random Forest       [S2]", False),
+        compute_metrics(y_true_s12, xgb_pred,  "XGBoost             [S2]", False),
+    ]
+all_metrics.append(lstm_metrics)
+
+# Save
+pd.DataFrame(all_metrics).to_csv(
+    os.path.join(RESULTS_DIR, "stage3_metrics.csv"), index=False # CHANGE
+)
+print("\n✓ Metrics saved.")
+
+# Quick comparison table
+print(f"\n{'Model':<32} {'Accuracy':>9} {'Precision':>10} {'Recall':>8} {'F1':>7}")
+print("  " + "-"*70)
+for m in all_metrics:
+    print(f"  {m['model']:<30} {m['accuracy']*100:>8.1f}%"
+          f" {m['precision']:>10.4f} {m['recall']:>8.4f} {m['f1']:>7.4f}")
+
+# --------------------------------------------------------------------------
+# STEP 5: Confusion matrices — LSTM + best Stage 2 model
+# --------------------------------------------------------------------------
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+fig.suptitle("Confusion Matrices — LSTM vs Best Stage 2", fontsize=13, fontweight="bold")
+
+# LSTM
+cm_lstm = confusion_matrix(y_true_lstm, lstm_pred, labels=[0, 1])
+ConfusionMatrixDisplay(cm_lstm, display_labels=["no-lick", "lick"]).plot(
+    ax=axes[0], colorbar=False, cmap="Greens")
+axes[0].set_title("LSTM [Stage 3]", fontsize=11)
+
+# Best Stage 2 model (RF, for comparison)
+if has_s12:
+    cm_rf = confusion_matrix(y_true_s12, rf_pred, labels=[0, 1])
+    ConfusionMatrixDisplay(cm_rf, display_labels=["no-lick", "lick"]).plot(
+        ax=axes[1], colorbar=False, cmap="Blues")
+    axes[1].set_title("Random Forest [Stage 2]", fontsize=11)
+else:
+    axes[1].set_visible(False)
+
+plt.tight_layout()
+plt.savefig(os.path.join(RESULTS_DIR, "stage3_confusion_matrices.png"), dpi=150) # CHANGE
+plt.close()
+print("✓ Confusion matrices saved.")
+
+# --------------------------------------------------------------------------
+# STEP 6: All-model metric bar chart
+# --------------------------------------------------------------------------
+
+if len(all_metrics) > 1:
+    fig, ax = plt.subplots(figsize=(14, 6))
+    metric_names = ["accuracy", "precision", "recall", "f1"]
+    x = np.arange(len(metric_names))
+    n_models = len(all_metrics)
+    width    = 0.15
+    colors   = ["#4C72B0", "#DD8452", "#55A868", "#C44E52", "#9C27B0"]
+
+    for i, (m, color) in enumerate(zip(all_metrics, colors)):
+        offset = (i - n_models / 2 + 0.5) * width
+        bars = ax.bar(x + offset, [m[mn] for mn in metric_names],
+                      width, label=m["model"], color=color, alpha=0.85)
+        for bar in bars:
+            h = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., h + 0.01,
+                    f"{h:.2f}", ha="center", va="bottom", fontsize=6.5)
+
+    ax.set_ylabel("Score")
+    ax.set_title("All Stages — Metric Comparison")
+    ax.set_xticks(x)
+    ax.set_xticklabels(["Accuracy", "Precision", "Recall", "F1"])
+    ax.set_ylim(0, 1.2)
+    ax.legend(loc="upper right", fontsize=8)
+    ax.grid(axis="y", linestyle="--", alpha=0.4)
+    plt.tight_layout()
+    plt.savefig(os.path.join(RESULTS_DIR, "stage3_all_model_comparison.png"), dpi=150) # CHANGE
+    plt.close()
+    print("✓ All-model comparison chart saved.")
+
+# --------------------------------------------------------------------------
+# STEP 7: Three-panel lick comparison (LSTM)
+# --------------------------------------------------------------------------
+
+def plot_lick_comparison(y_true, y_pred, prob, model_name, filename):
+    """
+    Three-panel figure:
+      Panel 1 — actual lick signal (lab data)
+      Panel 2 — predicted lick signal (model)
+      Panel 3 — superimposed, color-coded by TP/TN/FP/FN
+    Full test set shown on x-axis.
+    """
+    y_true = np.array(y_true, dtype=int)
+    y_pred = np.array(y_pred, dtype=int)
+    prob   = np.array(prob)
+    n      = len(y_true)
+    t      = np.arange(n)
+
+    tp = (y_true == 1) & (y_pred == 1)
+    tn = (y_true == 0) & (y_pred == 0)
+    fp = (y_true == 0) & (y_pred == 1)
+    fn = (y_true == 1) & (y_pred == 0)
+
+    fig, axes = plt.subplots(3, 1, figsize=(16, 9), sharex=True,
+                              gridspec_kw={"height_ratios": [1, 1, 1.4]})
+    fig.suptitle(f"Lick Detection: Actual vs Predicted\n{model_name}",
+                 fontsize=14, fontweight="bold", y=0.98)
+
+    # ── Panel 1: Actual ────────────────────────────────────────────────────
+    axes[0].fill_between(t, y_true, step="pre",
+                          color="#1565C0", alpha=0.80, linewidth=0)
+    axes[0].step(t, y_true, color="#1565C0", linewidth=0.6, where="pre")
+    axes[0].set_ylabel("Actual\n(lab data)", fontsize=11)
+    axes[0].set_ylim(-0.2, 1.4)
+    axes[0].set_yticks([0, 1])
+    axes[0].set_yticklabels(["no-lick", "lick"])
+    axes[0].spines[["top", "right"]].set_visible(False)
+    axes[0].text(0.99, 0.85, f"Lick: {y_true.mean()*100:.1f}%",
+                  transform=axes[0].transAxes, ha="right", fontsize=9,
+                  color="#1565C0",
+                  bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.7))
+
+    # ── Panel 2: Predicted ─────────────────────────────────────────────────
+    axes[1].fill_between(t, y_pred, step="pre",
+                          color="#E65100", alpha=0.80, linewidth=0)
+    axes[1].step(t, y_pred, color="#E65100", linewidth=0.6, where="pre")
+    axes[1].set_ylabel("Predicted\n(model)", fontsize=11)
+    axes[1].set_ylim(-0.2, 1.4)
+    axes[1].set_yticks([0, 1])
+    axes[1].set_yticklabels(["no-lick", "lick"])
+    axes[1].spines[["top", "right"]].set_visible(False)
+    axes[1].text(0.99, 0.85, f"Predicted lick: {y_pred.mean()*100:.1f}%",
+                  transform=axes[1].transAxes, ha="right", fontsize=9,
+                  color="#E65100",
+                  bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.7))
+
+    # ── Panel 3: Superimposed ──────────────────────────────────────────────
+    ax3 = axes[2]
+
+    outcome_colors = {
+        "tp": "#2E7D32",   # dark green  — correct lick
+        "tn": "#BBDEFB",   # light blue  — correct no-lick
+        "fp": "#C62828",   # dark red    — false alarm
+        "fn": "#E65100",   # dark orange — missed lick
+    }
+
+    def shade_regions(ax, mask, color, alpha):
+        padded = np.concatenate([[False], mask, [False]])
+        starts = np.where(~padded[:-1] &  padded[1:])[0]
+        ends   = np.where( padded[:-1] & ~padded[1:])[0]
+        for s, e in zip(starts, ends):
+            ax.axvspan(s, e, color=color, alpha=alpha, linewidth=0)
+
+    shade_regions(ax3, tn, outcome_colors["tn"], alpha=0.40)
+    shade_regions(ax3, tp, outcome_colors["tp"], alpha=0.55)
+    shade_regions(ax3, fp, outcome_colors["fp"], alpha=0.65)
+    shade_regions(ax3, fn, outcome_colors["fn"], alpha=0.70)
+
+    ax3.step(t, y_true, color="black", linewidth=1.0, where="pre",
+             alpha=0.6, label="Actual", zorder=3)
+    ax3.step(t, y_pred, color="gray",  linewidth=0.8, where="pre",
+             alpha=0.5, linestyle="--", label="Predicted", zorder=3)
+
+    ax3.set_ylim(-0.2, 1.4)
+    ax3.set_yticks([0, 1])
+    ax3.set_yticklabels(["no-lick", "lick"])
+    ax3.set_ylabel("Superimposed", fontsize=11)
+    ax3.set_xlabel("Sequence index (test set)", fontsize=11)
+    ax3.spines[["top", "right"]].set_visible(False)
+
+    # Probability overlay
+    ax3b = ax3.twinx()
+    ax3b.plot(t, prob, color="purple", linewidth=0.9, alpha=0.55, label="P(lick)")
+    ax3b.axhline(0.5, color="purple", linestyle=":", linewidth=0.8, alpha=0.5)
+    ax3b.set_ylim(-0.1, 1.5)
+    ax3b.set_ylabel("P(lick)", fontsize=10, color="purple")
+    ax3b.tick_params(axis="y", labelcolor="purple", labelsize=8)
+
+    # TP/TN/FP/FN counts in corner
+    ax3.text(0.01, 0.93,
+             f"TP:{tp.sum()}  TN:{tn.sum()}  FP:{fp.sum()}  FN:{fn.sum()}",
+             transform=ax3.transAxes, fontsize=8, family="monospace",
+             bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
+
+    # Legend
+    patches = [
+        mpatches.Patch(color=outcome_colors["tp"], alpha=0.7,
+                       label=f"True Positive  (n={tp.sum()})"),
+        mpatches.Patch(color=outcome_colors["tn"], alpha=0.5,
+                       label=f"True Negative  (n={tn.sum()})"),
+        mpatches.Patch(color=outcome_colors["fp"], alpha=0.7,
+                       label=f"False Positive (n={fp.sum()})"),
+        mpatches.Patch(color=outcome_colors["fn"], alpha=0.8,
+                       label=f"False Negative (n={fn.sum()})"),
+    ]
+    lines = [
+        plt.Line2D([0],[0], color="black",  lw=1.2,              label="Actual"),
+        plt.Line2D([0],[0], color="gray",   lw=1.0, ls="--",     label="Predicted"),
+        plt.Line2D([0],[0], color="purple", lw=1.2,              label="P(lick)"),
+    ]
+    fig.legend(handles=patches + lines, loc="lower center", ncol=4,
+               fontsize=8.5, bbox_to_anchor=(0.5, -0.04), frameon=True)
+
+    # Metrics footer
+    acc  = accuracy_score(y_true, y_pred)
+    prec = precision_score(y_true, y_pred, zero_division=0)
+    rec  = recall_score(y_true, y_pred, zero_division=0)
+    f1   = f1_score(y_true, y_pred, zero_division=0)
+    fig.text(0.5, 0.005,
+             f"Accuracy: {acc*100:.1f}%    Precision: {prec:.3f}    "
+             f"Recall: {rec:.3f}    F1: {f1:.3f}",
+             ha="center", fontsize=9.5, style="italic",
+             bbox=dict(boxstyle="round,pad=0.4", facecolor="#F5F5F5", alpha=0.9))
+
+    plt.tight_layout(rect=[0, 0.10, 1, 0.97])
+    out = os.path.join(RESULTS_DIR, filename)
+    plt.savefig(out, dpi=160, bbox_inches="tight")
+    plt.close()
+    print(f"✓ Timeline plot saved: {filename}")
+
+
+plot_lick_comparison(
+    y_true_lstm, lstm_pred, lstm_prob,
+    "LSTM [Stage 3]",
+    "lick_comparison_lstm.png" # CHANGE
+)
+
+# Also regenerate RF comparison plot for side-by-side viewing
+if has_s12:
+    plot_lick_comparison(
+        y_true_s12, rf_pred, rf_prob,
+        "Random Forest [Stage 2]",
+        "lick_comparison_rf_final.png" # CHANGE
+    )
+
+# --------------------------------------------------------------------------
+# DONE
+# --------------------------------------------------------------------------
+
+print(f"\n{'='*60}")
+print("Stage 3 evaluation complete. Files in results/:")
+print("  - stage3_metrics.csv")
+print("  - stage3_confusion_matrices.png")
+print("  - stage3_all_model_comparison.png")
+print("  - stage3_training_curves.png")
+print("  - lick_comparison_lstm.png")
+print("  - lick_comparison_rf_final.png")
+print(f"{'='*60}")

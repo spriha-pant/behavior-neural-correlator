@@ -11,3 +11,6 @@ dFF_lag_20
 dFF_delta
 dFF_roll_mean
 dFF_roll_std
+session_time_norm
+session_time_elapsed
+session_progress_bin

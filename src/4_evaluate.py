@@ -31,8 +31,8 @@ os.makedirs(RESULTS_DIR, exist_ok=True)
 print("Loading test data and models...")
 X_test  = pd.read_csv(os.path.join(PROCESSED_DIR, "X_test.csv"))
 y_test  = pd.read_csv(os.path.join(PROCESSED_DIR, "y_test.csv")).squeeze()
-lin_reg = joblib.load(os.path.join(MODELS_DIR, "linear_regression.pkl"))
-log_reg = joblib.load(os.path.join(MODELS_DIR, "logistic_regression.pkl"))
+lin_reg = joblib.load(os.path.join(MODELS_DIR, "linear_regression5.pkl")) # CHANGE
+log_reg = joblib.load(os.path.join(MODELS_DIR, "logistic_regression5.pkl")) # CHANGE
 
 print(f"  X_test shape: {X_test.shape}")
 print(f"  Actual lick rate in test set: {y_test.mean()*100:.1f}%")
@@ -107,7 +107,7 @@ for ax, y_pred, title in zip(axes, [lin_reg_pred, log_reg_pred],
         ax=ax, colorbar=False, cmap="Blues")
     ax.set_title(title, fontsize=12)
 plt.tight_layout()
-plt.savefig(os.path.join(RESULTS_DIR, "stage1_confusion_matrices.png"), dpi=150)
+plt.savefig(os.path.join(RESULTS_DIR, "stage1_confusion_matrices5.png"), dpi=150) # CHANGE
 plt.close()
 print(f"✓ Confusion matrices saved.")
 
@@ -134,7 +134,7 @@ for bar in list(bars1) + list(bars2):
     ax.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.02,
             f"{bar.get_height():.2f}", ha="center", va="bottom", fontsize=9)
 plt.tight_layout()
-plt.savefig(os.path.join(RESULTS_DIR, "stage1_metric_comparison.png"), dpi=150)
+plt.savefig(os.path.join(RESULTS_DIR, "stage1_metric_comparison5.png"), dpi=150) # CHANGE
 plt.close()
 print(f"✓ Metric comparison chart saved.")
 
@@ -161,7 +161,7 @@ axes[2].set_ylabel("Log Reg\nP(lick)"); axes[2].set_xlabel("Timepoint (test set)
 axes[2].set_ylim(-0.05, 1.05); axes[2].legend(loc="upper right", fontsize=8)
 
 plt.tight_layout()
-plt.savefig(os.path.join(RESULTS_DIR, "stage1_prediction_timeline.png"), dpi=150)
+plt.savefig(os.path.join(RESULTS_DIR, "stage1_prediction_timeline5.png"), dpi=150) # CHANGE
 plt.close()
 print(f"✓ Prediction timeline saved.")
 
