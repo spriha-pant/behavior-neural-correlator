@@ -48,7 +48,21 @@ split:
 model:
   # Threshold for converting linear regression's continuous output → binary label
   # Output > threshold → predicted lick (1), else → predicted no-lick (0)
-  lr_threshold: 0.3 # CHANGE
+  # 0.5 is correct now that SMOTE balances training data.
+  # 0.3 was a workaround for imbalance — no longer needed with SMOTE.
+  lr_threshold: 0.5 # CHANGE
 
 # --- Reproducibility ---
 random_seed: 42
+
+# --- LSTM (Stage 3) ---
+lstm:
+  seq_len: 30          # window length in timepoints (30 × ~66ms ≈ 2 seconds)
+  hidden_size: 64      # number of memory units in each LSTM layer
+  num_layers: 2        # stacked LSTM layers (2 is standard; more risks overfitting)
+  dropout: 0.3         # dropout between LSTM layers (regularisation)
+  batch_size: 64       # sequences per gradient update
+  epochs: 60           # max training epochs (early stopping will usually cut this short)
+  learning_rate: 0.001 # Adam optimizer learning rate
+  patience: 10         # early stopping: halt if val_loss doesn't improve for 10 epochs
+  val_split: 0.15      # fraction of training sequences held out for validation
