@@ -45,6 +45,66 @@ DROPOUT       = config["lstm"]["dropout"]
 
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
+# --- Post-processing config ---
+PP = config["lstm_postprocess"]
+SMOOTH_WIN   = PP["smooth_window"]
+PP_THRESHOLD = PP["threshold"]
+MIN_BOUT     = PP["min_bout_len"]
+GAP_FILL     = PP["gap_fill_len"]
+
+def postprocess_predictions(prob, smooth_win, threshold, min_bout, gap_fill):
+    """
+    Converts raw P(lick) probabilities into biologically plausible predictions.
+    Step 1 — Smooth:    rolling mean over smooth_win timepoints.
+              Eliminates single-spike noise before thresholding.
+    Step 2 — Threshold: apply threshold to smoothed probability.
+    Step 3 — Gap fill:  if two lick bouts are separated by a no-lick gap
+              shorter than gap_fill frames, merge them into one bout.
+              (A mouse doesn't stop licking for 200ms mid-bout.)
+    Step 4 — Min bout:  remove any remaining lick bout shorter than min_bout
+              frames. Lick bouts shorter than ~0.5s are not physiologically
+              plausible and are almost certainly false positives.
+    """
+    import pandas as pd
+
+    # Step 1: smooth
+    prob_smooth = (pd.Series(prob)
+                   .rolling(window=smooth_win, center=True, min_periods=1)
+                   .mean().values)
+
+    # Step 2: threshold
+    pred = (prob_smooth > threshold).astype(int)
+
+    # Step 3: gap fill
+    pred_work = pred.copy()
+    i = 0
+    while i < len(pred_work):
+        if pred_work[i] == 0:
+            j = i
+            while j < len(pred_work) and pred_work[j] == 0:
+                j += 1
+            if (j - i) <= gap_fill and i > 0 and j < len(pred_work):
+                pred_work[i:j] = 1
+            i = j
+        else:
+            i += 1
+
+    # Step 4: min bout removal
+    pred_clean = pred_work.copy()
+    i = 0
+    while i < len(pred_clean):
+        if pred_clean[i] == 1:
+            j = i
+            while j < len(pred_clean) and pred_clean[j] == 1:
+                j += 1
+            if (j - i) < min_bout:
+                pred_clean[i:j] = 0
+            i = j
+        else:
+            i += 1
+
+    return prob_smooth, pred_clean
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # --------------------------------------------------------------------------
@@ -94,7 +154,10 @@ X_tensor  = torch.tensor(X_test_lstm, dtype=torch.float32).to(device)
 with torch.no_grad():
     logits       = lstm_model(X_tensor)
     lstm_prob    = torch.sigmoid(logits).cpu().numpy()
-    lstm_pred    = (lstm_prob > 0.5).astype(int)
+    lstm_pred_raw = (lstm_prob > 0.5).astype(int)   # raw, unsmoothed
+    lstm_prob_smooth, lstm_pred = postprocess_predictions(
+        lstm_prob, SMOOTH_WIN, PP_THRESHOLD, MIN_BOUT, GAP_FILL
+)
 
 y_true_lstm = y_test_lstm.astype(int)
 
@@ -154,7 +217,8 @@ def compute_metrics(y_true, y_pred, model_name, print_report=True):
             "precision": prec, "recall": rec, "f1": f1}
 
 # Compute metrics for LSTM
-lstm_metrics = compute_metrics(y_true_lstm, lstm_pred, "LSTM [Stage 3]")
+lstm_raw_metrics = compute_metrics(y_true_lstm, lstm_pred_raw, "LSTM raw [Stage 3]", print_report=False)
+lstm_metrics     = compute_metrics(y_true_lstm, lstm_pred,     "LSTM postprocessed [Stage 3]")
 
 # Compute for Stage 1/2 (quieter — we've seen these before)
 all_metrics = []
@@ -382,17 +446,16 @@ def plot_lick_comparison(y_true, y_pred, prob, model_name, filename):
 
 
 plot_lick_comparison(
-    y_true_lstm, lstm_pred, lstm_prob,
-    "LSTM [Stage 3]",
-    "lick_comparison_lstm.png" # CHANGE
+    y_true_lstm, lstm_pred_raw, lstm_prob,
+    "LSTM — Raw output [Stage 3]",
+    "lick_comparison_lstm_raw.png" # CHANGE
 )
 
 # Also regenerate RF comparison plot for side-by-side viewing
-if has_s12:
-    plot_lick_comparison(
-        y_true_s12, rf_pred, rf_prob,
-        "Random Forest [Stage 2]",
-        "lick_comparison_rf_final.png" # CHANGE
+plot_lick_comparison(
+    y_true_lstm, lstm_pred, lstm_prob_smooth,
+    "LSTM — Post-processed [Stage 3]",
+    "lick_comparison_lstm_postprocessed.png" # CHANGE
     )
 
 # --------------------------------------------------------------------------
