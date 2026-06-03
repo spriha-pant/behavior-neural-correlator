@@ -58,11 +58,26 @@ random_seed: 42
 # --- LSTM (Stage 3) ---
 lstm:
   seq_len: 30          # window length in timepoints (30 × ~66ms ≈ 2 seconds)
-  hidden_size: 64      # number of memory units in each LSTM layer
-  num_layers: 2        # stacked LSTM layers (2 is standard; more risks overfitting)
-  dropout: 0.3         # dropout between LSTM layers (regularisation)
+  hidden_size: 32      # number of memory units in each LSTM layer
+  num_layers: 1        # stacked LSTM layers (2 is standard; more risks overfitting)
+  dropout: 0.4         # dropout between LSTM layers (regularisation)
   batch_size: 64       # sequences per gradient update
   epochs: 60           # max training epochs (early stopping will usually cut this short)
   learning_rate: 0.001 # Adam optimizer learning rate
   patience: 10         # early stopping: halt if val_loss doesn't improve for 10 epochs
   val_split: 0.15      # fraction of training sequences held out for validation
+
+  # --- LSTM post-processing ---
+# Applied after the model outputs raw probabilities. No retraining needed.
+# Tune these if predictions are too fragmented or too conservative.
+lstm_postprocess:
+  smooth_window: 15    # rolling-mean window on P(lick) before thresholding
+                       # at 15 Hz: 15 ≈ 1 second of smoothing
+                       # larger = smoother predictions, less jitter
+  threshold: 0.25      # decision threshold AFTER smoothing
+                       # lower than 0.5 because model is conservative
+                       # (training 14% lick vs test 41% lick)
+  min_bout_len: 8      # remove predicted lick bouts shorter than N timepoints
+                       # at 15 Hz: 8 ≈ 0.5 seconds — shortest plausible lick bout
+  gap_fill_len: 6      # fill no-lick gaps between lick bouts shorter than N timepoints
+                       # prevents "lick ... 2-frame gap ... lick" being split into two bouts

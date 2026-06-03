@@ -1,0 +1,17 @@
+version,label,model,f1,recall,precision,notes
+1,"LinReg
+1file",LinReg,0.0,0.0,0.0,"Linear Regression, 1 file, thresh=0.5"
+2,"LogReg
+1file",LogReg,0.54,0.66,0.46,"Logistic Regression, 1 file, balanced"
+3,"RF
+1file",RF,0.44,0.38,0.52,"Random Forest, 1 file, thresh=0.5"
+4,"XGB
+1file",XGB,0.33,0.24,0.52,"XGBoost, 1 file, thresh=0.5"
+5,"RF
+thresh=0.3",RF,0.61,0.76,0.51,RF thresh lowered to 0.3
+6,"RF+SMOTE
+3files",RF,0.49,0.69,0.37,RF + SMOTE + 3 files
+7,"LSTM
+raw",LSTM,0.16,0.11,0.31,"LSTM Stage 3, raw predictions"
+8,"LSTM
+post-proc",LSTM,0.0,0.0,0.0,FILL IN: LSTM post-processed

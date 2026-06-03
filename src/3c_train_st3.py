@@ -178,7 +178,7 @@ print(f"\n  pos_weight = {pos_w.item():.2f}  "
       f"(n_no_lick={n_nolick}, n_lick={n_lick})")
 
 criterion = nn.BCEWithLogitsLoss(pos_weight=pos_w)
-optimizer = torch.optim.Adam(model.parameters(), lr=LR)
+optimizer = torch.optim.Adam(model.parameters(), lr=LR, weight_decay=1e-4)
 
 # Learning rate scheduler: reduce LR by half if val_loss plateaus for 5 epochs
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(

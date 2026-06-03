@@ -228,6 +228,19 @@ else:
     print(f"  X_train: {X_train.shape}  lick rate: {y_train.mean()*100:.1f}%")
     print(f"  X_test:  {X_test.shape}  lick rate: {y_test.mean()*100:.1f}%")
 
+# Instead of picking only best fold, save all folds with >5% test lick rate
+qualifying = [(i, info) for i, info in enumerate(fold_info) 
+              if info["test_lick_pct"] > 5.0]
+
+print(f"\n  Qualifying folds (test lick > 5%): "
+      f"{[f['fold'] for _, f in qualifying]}")
+
+# Still save the best fold as primary train/test (for compatibility)
+# but also save the list of qualifying fold indices for cross-val
+pd.DataFrame([f for _, f in qualifying]).to_csv(
+    os.path.join(PROCESSED_DIR, "lstm_qualifying_folds.csv"), index=False
+)
+
 # --------------------------------------------------------------------------
 # STEP 5: Save as .npy arrays
 # --------------------------------------------------------------------------
